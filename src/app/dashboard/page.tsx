@@ -23,7 +23,7 @@ type Report = {
 type Stats = { total: number; menunggu: number; selesai: number }
 type Tab = 'statistik' | 'daftar' | 'pengerjaan'
 type Filter = 'semua' | 'menunggu' | 'selesai'
-type Screen = 'main' | 'input' | 'detail' | 'denah-view' | 'filter-stat' | 'filter-daftar' | 'filter-pj'
+type Screen = 'main' | 'input' | 'detail' | 'denah-view' | 'filter-stat' | 'filter-daftar' | 'filter-pj' | 'confirm'
 type Pic = { id: string; name: string }
 
 /* ─── Colours ────────────────────────────────────────────── */
@@ -64,7 +64,6 @@ export default function Dashboard() {
   const [submitting, setSubmitting] = useState(false)
 
   // Confirm modal
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmDesc, setConfirmDesc] = useState('')
   const [confirmPhoto, setConfirmPhoto] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -184,7 +183,7 @@ export default function Dashboard() {
     })
     setConfirming(false)
     if (res.ok) {
-      setConfirmOpen(false); setConfirmDesc(''); setConfirmPhoto(null)
+      setConfirmDesc(''); setConfirmPhoto(null)
       await fetchData()
       if (screen === 'detail' && detail?.id === confirmTargetId) {
         const updated = await fetch(`/api/reports/${confirmTargetId}`).then(r => r.json())
@@ -558,7 +557,7 @@ export default function Dashboard() {
                         <Row label="Tanggal Pelaporan" value={formatDate(r.createdAt)} />
                         <Row label="Dilaporkan oleh" value={r.createdBy.name} />
                       </div>
-                      <button onClick={() => { setConfirmTargetId(r.id); setConfirmDesc(''); setConfirmPhoto(null); setConfirmOpen(true) }}
+                      <button onClick={() => { setConfirmTargetId(r.id); setConfirmDesc(''); setConfirmPhoto(null); setScreen('confirm') }}
                         className="w-full py-2.5 text-xs font-bold text-white flex items-center justify-center gap-1.5"
                         style={{ background: GRN }}>
                         ✅ Konfirmasi Selesai
@@ -947,29 +946,35 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ════ MODAL: Konfirmasi ════ */}
-        {confirmOpen && (
-          <div className="absolute inset-0 bg-black/50 z-50 flex items-end">
-            <div className="bg-white rounded-t-2xl p-5 w-full">
-              <p className="font-bold text-sm mb-4">✅ Konfirmasi Pengerjaan Selesai</p>
-              <Label>Deskripsi Pengerjaan *</Label>
-              <textarea value={confirmDesc} onChange={e => setConfirmDesc(e.target.value)}
-                className={`${input} resize-none h-20 mb-3`} placeholder="Jelaskan pengerjaan yang sudah dilakukan..." />
-              <Label>Foto Bukti Pengerjaan *</Label>
-              <div className="mb-3">
+        {/* ════ SCREEN: KONFIRMASI PENGERJAAN ════ */}
+        {screen === 'confirm' && (
+          <>
+            <Header title="Konfirmasi Pengerjaan" onBack={() => setScreen(detail ? 'detail' : 'main')} />
+            <div className="flex-1 overflow-y-auto p-3.5">
+              <FormSection>
+                <Label>Deskripsi Pengerjaan *</Label>
+                <textarea value={confirmDesc} onChange={e => setConfirmDesc(e.target.value)}
+                  className={`${input} resize-none h-28`} placeholder="Jelaskan pengerjaan yang sudah dilakukan..." />
+              </FormSection>
+              <FormSection>
+                <Label>Foto Bukti Pengerjaan *</Label>
                 <ImageUpload value={confirmPhoto} onChange={setConfirmPhoto} placeholder="Tambah Foto Bukti Pengerjaan" />
-              </div>
-              <div className="flex gap-2.5">
-                <button onClick={() => setConfirmOpen(false)} className="flex-1 py-3 rounded-xl border-2 text-sm font-bold" style={{ borderColor: P, color: P }}>
-                  Batal
-                </button>
-                <button onClick={doConfirm} disabled={confirming}
-                  className="flex-1 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-60" style={{ background: GRN }}>
-                  {confirming ? 'Menyimpan...' : 'Konfirmasi Selesai'}
-                </button>
-              </div>
+              </FormSection>
+              <div className="h-4" />
             </div>
-          </div>
+            <div className="p-3.5 bg-white border-t border-gray-100 flex-shrink-0 flex flex-col gap-2">
+              <button onClick={doConfirm} disabled={confirming}
+                className="w-full py-3 rounded-xl text-white text-sm font-bold disabled:opacity-60"
+                style={{ background: GRN }}>
+                {confirming ? 'Menyimpan...' : '✅ Konfirmasi Selesai'}
+              </button>
+              <button onClick={() => setScreen(detail ? 'detail' : 'main')}
+                className="w-full py-3 rounded-xl border-2 text-sm font-bold"
+                style={{ borderColor: P, color: P }}>
+                Batal
+              </button>
+            </div>
+          </>
         )}
 
         {/* ════ TOAST ════ */}

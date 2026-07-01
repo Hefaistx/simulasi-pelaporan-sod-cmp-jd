@@ -514,16 +514,6 @@ export default function Dashboard() {
                       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${GRN}, ${P})` }} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button onClick={() => switchTab('daftar','menunggu')} className="rounded-xl p-3 text-left" style={{ background: '#ECEFF1' }}>
-                      <p className="text-xs text-gray-500">Menunggu</p>
-                      <p className="text-3xl font-black" style={{ color: GRY }}>{stats.menunggu}</p>
-                    </button>
-                    <button onClick={() => switchTab('daftar','selesai')} className="rounded-xl p-3 text-left" style={{ background: '#E8F5E9' }}>
-                      <p className="text-xs text-gray-500">Selesai</p>
-                      <p className="text-3xl font-black" style={{ color: GRN }}>{stats.selesai}</p>
-                    </button>
-                  </div>
                 </>
               )}
 

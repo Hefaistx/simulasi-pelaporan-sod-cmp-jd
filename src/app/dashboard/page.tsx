@@ -57,6 +57,7 @@ export default function Dashboard() {
 
   // Input form state
   const [inpPropertyId, setInpPropertyId] = useState('')
+  const [inpArea, setInpArea] = useState('')
   const [inpDesc, setInpDesc] = useState('')
   const [inpDenahCell, setInpDenahCell] = useState<{ r: number; c: number } | null>(null)
   const [inpPhoto, setInpPhoto] = useState<string | null>(null)
@@ -143,6 +144,7 @@ export default function Dashboard() {
   /* ─── Submit laporan ─────────────────────────────────────── */
   async function submitLaporan() {
     if (!inpPropertyId) { alert('Pilih properti'); return }
+    if (!inpArea) { alert('Pilih area'); return }
     if (!inpDesc.trim()) { alert('Isi deskripsi kerusakan'); return }
     if (!inpPhoto) { alert('Tambahkan foto bukti kerusakan'); return }
     setSubmitting(true)
@@ -160,7 +162,7 @@ export default function Dashboard() {
     })
     setSubmitting(false)
     if (res.ok) {
-      setInpPropertyId(''); setInpDesc(''); setInpDenahCell(null); setInpPhoto(null)
+      setInpPropertyId(''); setInpArea(''); setInpDesc(''); setInpDenahCell(null); setInpPhoto(null)
       await fetchData()
       switchTab('daftar', 'menunggu')
       showToast('Laporan berhasil disimpan!')
@@ -605,6 +607,14 @@ export default function Dashboard() {
                 <select value={inpPropertyId} onChange={e => setInpPropertyId(e.target.value)} className={input}>
                   <option value="">-- Pilih Properti --</option>
                   {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </FormSection>
+              <FormSection>
+                <Label>Area *</Label>
+                <select value={inpArea} onChange={e => setInpArea(e.target.value)} className={input}>
+                  <option value="">-- Pilih Area --</option>
+                  <option value="DAPUR">DAPUR</option>
+                  <option value="COUNTER">COUNTER</option>
                 </select>
               </FormSection>
               <FormSection>

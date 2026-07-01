@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id         String    @id @default(cuid())
+  name       String
+  email      String    @unique
+  password   String
+  role       Role      @default(STAFF)
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+  reports    Report[]
+  confirmations ReportConfirmation[]
+  history    ReportHistory[]
+  createdAt  DateTime  @default(now())
+}
+
+enum Role {
+  STAFF
+  HEAD_OUTLET
+}
+
+model Property {
+  id      String   @id @default(cuid())
+  name    String
+  code    String   @unique
+  users   User[]
+  reports Report[]
+}
+
+model Report {
+  id           String              @id @default(cuid())
+  code         String              @unique
+  propertyId   String
+  property     Property            @relation(fields: [propertyId], references: [id])
+  description  String
+  photoUrl     String?  @db.Text
+  denahId      String?
+  denahCellR   Int?
+  denahCellC   Int?
+  status       ReportStatus        @default(MENUNGGU)
+  createdById  String
+  createdBy    User                @relation(fields: [createdById], references: [id])
+  confirmation ReportConfirmation?
+  history      ReportHistory[]
+  createdAt    DateTime            @default(now())
+}
+
+enum ReportStatus {
+  MENUNGGU
+  SELESAI
+}
+
+model ReportConfirmation {
+  id            String   @id @default(cuid())
+  reportId      String   @unique
+  report        Report   @relation(fields: [reportId], references: [id])
+  description   String
+  photoUrl      String?  @db.Text
+  confirmedById String
+  confirmedBy   User     @relation(fields: [confirmedById], references: [id])
+  confirmedAt   DateTime @default(now())
+}
+
+model ReportHistory {
+  id        String   @id @default(cuid())
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id])
+  action    String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}

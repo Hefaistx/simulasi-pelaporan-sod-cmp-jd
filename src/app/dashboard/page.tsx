@@ -359,64 +359,101 @@ export default function Dashboard() {
   async function exportExcel() {
     setExporting(true)
     try {
-      const XLSX = await import('xlsx')
+      const ExcelJS = (await import('exceljs')).default
       const rows = buildExportRows(filtered, 'excel')
 
       const exportedBy = session ? `${session.name} - ${roleLabel(session.role)}` : '-'
       const exportedAt = formatDate(new Date())
+      const COL = EXPORT_HEADERS.length
 
-      const filterRows: (string | number)[][] = []
-      if (fStartDate || fEndDate || fPropertyId || fPicId) {
-        if (fStartDate || fEndDate) filterRows.push([`Periode: ${periodLabel()}`])
-        if (fPropertyId) filterRows.push([`Properti: ${properties.find(p => p.id === fPropertyId)?.name || fPropertyId}`])
-        if (fPicId) filterRows.push([`PIC: ${pics.find(u => u.id === fPicId)?.name || fPicId}`])
-        filterRows.push([])
+      const wb = new ExcelJS.Workbook()
+      const ws = wb.addWorksheet('Laporan SOD')
+
+      ws.columns = [
+        { width: 5 },  { width: 26 }, { width: 22 }, { width: 20 }, { width: 20 },
+        { width: 14 }, { width: 14 }, { width: 35 }, { width: 20 }, { width: 22 },
+        { width: 30 }, { width: 20 }, { width: 25 }, { width: 22 },
+      ]
+
+      // Helper: tambah baris judul dengan merge
+      const addMergedRow = (text: string, bold: boolean, size: number) => {
+        const row = ws.addRow([text])
+        ws.mergeCells(row.number, 1, row.number, COL)
+        row.getCell(1).font = { bold, size }
+        row.getCell(1).alignment = { horizontal: 'center' }
       }
 
-      const COL = EXPORT_HEADERS.length
-      const dataRowStart = 3 + filterRows.length // 0-based row index of EXPORT_HEADERS
+      addMergedRow('PT ROYAL DPARAGON LAND', true, 12)
+      addMergedRow('REKAP DATA PELAPORAN SOD', true, 11)
+      ws.addRow([])
 
-      const data: (string | number)[][] = [
-        ['PT ROYAL DPARAGON LAND'],
-        ['REKAP DATA PELAPORAN SOD'],
-        [],
-        ...filterRows,
-        EXPORT_HEADERS,
-        ...rows,
-        [],
-        ['Exported by', exportedBy],
-        ['Exported at', exportedAt],
-      ]
+      // Filter info
+      if (fStartDate || fEndDate || fPropertyId || fPicId) {
+        const addFilter = (text: string) => {
+          const row = ws.addRow([text])
+          ws.mergeCells(row.number, 1, row.number, COL)
+          row.getCell(1).font = { italic: true, size: 9 }
+        }
+        if (fStartDate || fEndDate) addFilter(`Periode: ${periodLabel()}`)
+        if (fPropertyId) addFilter(`Properti: ${properties.find(p => p.id === fPropertyId)?.name || fPropertyId}`)
+        if (fPicId) addFilter(`PIC: ${pics.find(u => u.id === fPicId)?.name || fPicId}`)
+        ws.addRow([])
+      }
 
-      const ws = XLSX.utils.aoa_to_sheet(data)
+      // Header row — biru seperti PDF
+      const headerRow = ws.addRow(EXPORT_HEADERS)
+      headerRow.height = 22
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF48B9EF' } }
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 }
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      })
 
-      ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: COL - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: COL - 1 } },
-      ]
+      // Data rows dengan alternate color
+      rows.forEach((row, idx) => {
+        // Konversi string =HYPERLINK(...) ke objek hyperlink exceljs
+        const processed = row.map(val => {
+          if (typeof val === 'string' && val.startsWith('=HYPERLINK(')) {
+            const m = val.match(/=HYPERLINK\("([^"]+)","([^"]+)"\)/)
+            if (m) return { text: m[2], hyperlink: m[1] }
+          }
+          return val
+        })
 
-      void dataRowStart
+        const dataRow = ws.addRow(processed)
+        dataRow.height = 16
+        const fillColor = idx % 2 === 0 ? 'FFEBF7FF' : 'FFFFFFFF'
+        dataRow.eachCell({ includeEmpty: true }, cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } }
+          cell.alignment = { vertical: 'middle', wrapText: true }
+          const v = cell.value
+          if (v && typeof v === 'object' && 'hyperlink' in v) {
+            cell.font = { color: { argb: 'FF0563C1' }, underline: true, size: 9 }
+          } else {
+            cell.font = { size: 9 }
+          }
+        })
+      })
 
-      ws['!cols'] = [
-        { wch: 5 },  // No
-        { wch: 26 }, // ID Laporan
-        { wch: 22 }, // Tanggal Laporan
-        { wch: 20 }, // PIC Pelapor
-        { wch: 20 }, // Properti
-        { wch: 14 }, // Area
-        { wch: 14 }, // ID Denah
-        { wch: 35 }, // Deskripsi Laporan
-        { wch: 35 }, // Foto Laporan
-        { wch: 22 }, // Status
-        { wch: 30 }, // HP - Keterangan
-        { wch: 35 }, // HP - Foto
-        { wch: 25 }, // HP - PIC
-        { wch: 22 }, // HP - Tanggal
-      ]
+      // Metadata di bawah
+      ws.addRow([])
+      const m1 = ws.addRow(['Exported by', exportedBy])
+      m1.getCell(1).font = { bold: true, size: 9 }
+      m1.getCell(2).font = { size: 9 }
+      const m2 = ws.addRow(['Exported at', exportedAt])
+      m2.getCell(1).font = { bold: true, size: 9 }
+      m2.getCell(2).font = { size: 9 }
 
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Laporan SOD')
-      XLSX.writeFile(wb, exportFilename('xlsx'))
+      // Download
+      const buffer = await wb.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = exportFilename('xlsx')
+      a.click()
+      URL.revokeObjectURL(url)
+
     } finally {
       setExporting(false)
       setExportOpen(false)

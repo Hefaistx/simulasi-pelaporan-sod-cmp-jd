@@ -237,25 +237,45 @@ export default function Dashboard() {
     return role === 'HEAD_OUTLET' ? 'Head Outlet' : 'Staff'
   }
 
-  function buildExportRows(data: Report[]) {
-    return data.map((r, i) => [
-      i + 1,
-      r.code,
-      formatDate(r.createdAt),
-      r.createdBy.name,
-      r.property.name,
-      r.area || '-',
-      r.denahId || '-',
-      r.description,
-      r.photoUrl || '-',
-      r.status === 'MENUNGGU' ? 'Menunggu Pengerjaan' : 'Selesai',
-      r.confirmation?.description || '-',
-      r.confirmation?.photoUrl || '-',
-      r.confirmation
-        ? `${r.confirmation.confirmedBy.name} - ${roleLabel(r.confirmation.confirmedBy.role)}`
-        : '-',
-      r.confirmation ? formatDate(r.confirmation.confirmedAt) : '-',
-    ])
+  function randomFakeUrl() {
+    const id = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10)
+    return `https://storage.sod-pelaporan.com/foto/${id}`
+  }
+
+  function resolvePhotoUrl(url: string | null | undefined): string | null {
+    if (!url) return null
+    return url.startsWith('data:') ? randomFakeUrl() : url
+  }
+
+  function buildExportRows(data: Report[], format: 'pdf' | 'excel') {
+    return data.map((r, i) => {
+      const fotoLaporan = resolvePhotoUrl(r.photoUrl)
+      const fotoHP = resolvePhotoUrl(r.confirmation?.photoUrl)
+      const fotoLaporanCell = fotoLaporan
+        ? (format === 'excel' ? `=HYPERLINK("${fotoLaporan}","Lihat Foto")` : 'Lihat Foto')
+        : '-'
+      const fotoHPCell = fotoHP
+        ? (format === 'excel' ? `=HYPERLINK("${fotoHP}","Lihat Foto")` : 'Lihat Foto')
+        : '-'
+      return [
+        i + 1,
+        r.code,
+        formatDate(r.createdAt),
+        r.createdBy.name,
+        r.property.name,
+        r.area || '-',
+        r.denahId || '-',
+        r.description,
+        fotoLaporanCell,
+        r.status === 'MENUNGGU' ? 'Menunggu Pengerjaan' : 'Selesai',
+        r.confirmation?.description || '-',
+        fotoHPCell,
+        r.confirmation
+          ? `${r.confirmation.confirmedBy.name} - ${roleLabel(r.confirmation.confirmedBy.role)}`
+          : '-',
+        r.confirmation ? formatDate(r.confirmation.confirmedAt) : '-',
+      ]
+    })
   }
 
   const EXPORT_HEADERS = [
@@ -296,7 +316,7 @@ export default function Dashboard() {
       autoTable(doc, {
         startY: hasFilter ? 29 : 24,
         head: [EXPORT_HEADERS],
-        body: buildExportRows(filtered),
+        body: buildExportRows(filtered, 'pdf'),
         styles: { fontSize: 6, cellPadding: 1.5, overflow: 'linebreak' },
         headStyles: { fillColor: [72, 185, 239], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 6 },
         columnStyles: {
@@ -340,7 +360,7 @@ export default function Dashboard() {
     setExporting(true)
     try {
       const XLSX = await import('xlsx')
-      const rows = buildExportRows(filtered)
+      const rows = buildExportRows(filtered, 'excel')
 
       const exportedBy = session ? `${session.name} - ${roleLabel(session.role)}` : '-'
       const exportedAt = formatDate(new Date())

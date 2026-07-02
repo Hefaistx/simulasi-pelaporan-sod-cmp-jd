@@ -247,35 +247,25 @@ export default function Dashboard() {
     return url.startsWith('data:') ? randomFakeUrl() : url
   }
 
-  function buildExportRows(data: Report[], format: 'pdf' | 'excel') {
-    return data.map((r, i) => {
-      const fotoLaporan = resolvePhotoUrl(r.photoUrl)
-      const fotoHP = resolvePhotoUrl(r.confirmation?.photoUrl)
-      const fotoLaporanCell = fotoLaporan
-        ? (format === 'excel' ? `=HYPERLINK("${fotoLaporan}","Lihat Foto")` : 'Lihat Foto')
-        : '-'
-      const fotoHPCell = fotoHP
-        ? (format === 'excel' ? `=HYPERLINK("${fotoHP}","Lihat Foto")` : 'Lihat Foto')
-        : '-'
-      return [
-        i + 1,
-        r.code,
-        formatDate(r.createdAt),
-        r.createdBy.name,
-        r.property.name,
-        r.area || '-',
-        r.denahId || '-',
-        r.description,
-        fotoLaporanCell,
-        r.status === 'MENUNGGU' ? 'Menunggu Pengerjaan' : 'Selesai',
-        r.confirmation?.description || '-',
-        fotoHPCell,
-        r.confirmation
-          ? `${r.confirmation.confirmedBy.name} - ${roleLabel(r.confirmation.confirmedBy.role)}`
-          : '-',
-        r.confirmation ? formatDate(r.confirmation.confirmedAt) : '-',
-      ]
-    })
+  function buildExportRows(data: Report[]) {
+    return data.map((r, i) => [
+      i + 1,
+      r.code,
+      formatDate(r.createdAt),
+      r.createdBy.name,
+      r.property.name,
+      r.area || '-',
+      r.denahId || '-',
+      r.description,
+      resolvePhotoUrl(r.photoUrl) || '-',
+      r.status === 'MENUNGGU' ? 'Menunggu Pengerjaan' : 'Selesai',
+      r.confirmation?.description || '-',
+      resolvePhotoUrl(r.confirmation?.photoUrl) || '-',
+      r.confirmation
+        ? `${r.confirmation.confirmedBy.name} - ${roleLabel(r.confirmation.confirmedBy.role)}`
+        : '-',
+      r.confirmation ? formatDate(r.confirmation.confirmedAt) : '-',
+    ])
   }
 
   const EXPORT_HEADERS = [
@@ -316,7 +306,7 @@ export default function Dashboard() {
       autoTable(doc, {
         startY: hasFilter ? 29 : 24,
         head: [EXPORT_HEADERS],
-        body: buildExportRows(filtered, 'pdf'),
+        body: buildExportRows(filtered),
         styles: { fontSize: 6, cellPadding: 1.5, overflow: 'linebreak' },
         headStyles: { fillColor: [72, 185, 239], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 6 },
         columnStyles: {
@@ -360,7 +350,7 @@ export default function Dashboard() {
     setExporting(true)
     try {
       const ExcelJS = (await import('exceljs')).default
-      const rows = buildExportRows(filtered, 'excel')
+      const rows = buildExportRows(filtered)
 
       const exportedBy = session ? `${session.name} - ${roleLabel(session.role)}` : '-'
       const exportedAt = formatDate(new Date())
@@ -411,27 +401,13 @@ export default function Dashboard() {
 
       // Data rows dengan alternate color
       rows.forEach((row, idx) => {
-        // Konversi string =HYPERLINK(...) ke objek hyperlink exceljs
-        const processed = row.map(val => {
-          if (typeof val === 'string' && val.startsWith('=HYPERLINK(')) {
-            const m = val.match(/=HYPERLINK\("([^"]+)","([^"]+)"\)/)
-            if (m) return { text: m[2], hyperlink: m[1] }
-          }
-          return val
-        })
-
-        const dataRow = ws.addRow(processed)
+        const dataRow = ws.addRow(row)
         dataRow.height = 16
         const fillColor = idx % 2 === 0 ? 'FFEBF7FF' : 'FFFFFFFF'
         dataRow.eachCell({ includeEmpty: true }, cell => {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } }
+          cell.font = { size: 9 }
           cell.alignment = { vertical: 'middle', wrapText: true }
-          const v = cell.value
-          if (v && typeof v === 'object' && 'hyperlink' in v) {
-            cell.font = { color: { argb: 'FF0563C1' }, underline: true, size: 9 }
-          } else {
-            cell.font = { size: 9 }
-          }
         })
       })
 

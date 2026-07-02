@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     include: {
       property: true,
       createdBy: { select: { name: true } },
-      confirmation: { include: { confirmedBy: { select: { name: true } } } },
+      confirmation: { include: { confirmedBy: { select: { name: true, role: true } } } },
       history: {
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: 'asc' },

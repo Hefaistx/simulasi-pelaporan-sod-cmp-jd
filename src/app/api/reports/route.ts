@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     include: {
       property: true,
       createdBy: { select: { name: true } },
-      confirmation: { include: { confirmedBy: { select: { name: true } } } },
+      confirmation: { include: { confirmedBy: { select: { name: true, role: true } } } },
       history: {
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: 'asc' },
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   if (session.role !== 'STAFF') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { propertyId, description, photoUrl, denahId, denahCellR, denahCellC } = body
+  const { propertyId, area, description, photoUrl, denahId, denahCellR, denahCellC } = body
 
   if (!propertyId || !description) {
     return NextResponse.json({ error: 'propertyId dan description wajib diisi' }, { status: 400 })
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     data: {
       code,
       propertyId,
+      area: area || null,
       description,
       photoUrl: photoUrl ?? null,
       denahId: denahId || null,

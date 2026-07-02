@@ -14,10 +14,11 @@ type Property = { id: string; name: string; code: string }
 type Report = {
   id: string; code: string; status: Status; createdAt: string; description: string
   photoUrl?: string | null
+  area?: string | null
   denahId: string | null; denahCellR: number | null; denahCellC: number | null
   property: Property
   createdBy: { name: string }
-  confirmation?: { description: string; photoUrl?: string | null; confirmedAt: string; confirmedBy: { name: string } } | null
+  confirmation?: { description: string; photoUrl?: string | null; confirmedAt: string; confirmedBy: { name: string; role: Role } } | null
   history: { action: string; createdAt: string; user: { name: string } }[]
 }
 type Stats = { total: number; menunggu: number; selesai: number }
@@ -152,6 +153,7 @@ export default function Dashboard() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         propertyId: inpPropertyId,
+        area: inpArea || null,
         description: inpDesc,
         photoUrl: inpPhoto,
         denahId: inpDenahCell ? '492321' : null,
@@ -231,6 +233,10 @@ export default function Dashboard() {
     return `Daftar_Pelaporan_${ts}.${ext}`
   }
 
+  function roleLabel(role: Role) {
+    return role === 'HEAD_OUTLET' ? 'Head Outlet' : 'Staff'
+  }
+
   function buildExportRows(data: Report[]) {
     return data.map((r, i) => [
       i + 1,
@@ -238,19 +244,25 @@ export default function Dashboard() {
       formatDate(r.createdAt),
       r.createdBy.name,
       r.property.name,
+      r.area || '-',
       r.denahId || '-',
       r.description,
+      r.photoUrl || '-',
       r.status === 'MENUNGGU' ? 'Menunggu Pengerjaan' : 'Selesai',
       r.confirmation?.description || '-',
-      r.confirmation?.confirmedBy.name || '-',
+      r.confirmation?.photoUrl || '-',
+      r.confirmation
+        ? `${r.confirmation.confirmedBy.name} - ${roleLabel(r.confirmation.confirmedBy.role)}`
+        : '-',
       r.confirmation ? formatDate(r.confirmation.confirmedAt) : '-',
     ])
   }
 
   const EXPORT_HEADERS = [
-    'No', 'ID Laporan', 'Tanggal Laporan', 'PIC Pelapor', 'Properti',
-    'ID Denah', 'Deskripsi Laporan', 'Status',
-    'Hasil Pengerjaan - Keterangan', 'Hasil Pengerjaan - PIC', 'Hasil Pengerjaan - Tanggal',
+    'No', 'ID Laporan', 'Tanggal Laporan', 'PIC Pelapor', 'Properti', 'Area',
+    'ID Denah', 'Deskripsi Laporan', 'Foto Laporan', 'Status',
+    'Hasil Pengerjaan - Keterangan', 'Hasil Pengerjaan - Foto',
+    'Hasil Pengerjaan - PIC', 'Hasil Pengerjaan - Tanggal',
   ]
 
   async function exportPDF() {
@@ -260,6 +272,9 @@ export default function Dashboard() {
       const { default: autoTable } = await import('jspdf-autotable')
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
+      const exportedBy = session ? `${session.name} - ${roleLabel(session.role)}` : '-'
+      const exportedAt = formatDate(new Date())
+
       const pageW = doc.internal.pageSize.getWidth()
       doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
@@ -267,7 +282,8 @@ export default function Dashboard() {
       doc.setFontSize(10)
       doc.text('REKAP DATA PELAPORAN SOD', pageW / 2, 20, { align: 'center' })
 
-      if (fStartDate || fEndDate || fPropertyId || fPicId) {
+      const hasFilter = !!(fStartDate || fEndDate || fPropertyId || fPicId)
+      if (hasFilter) {
         doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
         const filterInfo: string[] = []
@@ -278,19 +294,39 @@ export default function Dashboard() {
       }
 
       autoTable(doc, {
-        startY: fStartDate || fEndDate || fPropertyId || fPicId ? 29 : 24,
+        startY: hasFilter ? 29 : 24,
         head: [EXPORT_HEADERS],
         body: buildExportRows(filtered),
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [72, 185, 239], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        styles: { fontSize: 6, cellPadding: 1.5, overflow: 'linebreak' },
+        headStyles: { fillColor: [72, 185, 239], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 6 },
         columnStyles: {
-          0: { halign: 'center', cellWidth: 8 },
-          1: { cellWidth: 30 },
-          2: { cellWidth: 24 },
-          6: { cellWidth: 40 },
-          8: { cellWidth: 35 },
+          0:  { halign: 'center', cellWidth: 6 },
+          1:  { cellWidth: 26 },
+          2:  { cellWidth: 20 },
+          3:  { cellWidth: 18 },
+          4:  { cellWidth: 18 },
+          5:  { cellWidth: 13 },
+          6:  { cellWidth: 13 },
+          7:  { cellWidth: 28 },
+          8:  { cellWidth: 22 },
+          9:  { cellWidth: 16 },
+          10: { cellWidth: 26 },
+          11: { cellWidth: 22 },
+          12: { cellWidth: 20 },
+          13: { cellWidth: 20 },
         },
         alternateRowStyles: { fillColor: [235, 247, 255] },
+        didDrawPage: () => {
+          const pageH = doc.internal.pageSize.getHeight()
+          doc.setFontSize(6)
+          doc.setFont('helvetica', 'italic')
+          doc.setTextColor(120)
+          doc.text(
+            `Exported by: ${exportedBy}  |  Exported at: ${exportedAt}`,
+            pageW / 2, pageH - 5, { align: 'center' }
+          )
+          doc.setTextColor(0)
+        },
       })
 
       doc.save(exportFilename('pdf'))
@@ -306,7 +342,10 @@ export default function Dashboard() {
       const XLSX = await import('xlsx')
       const rows = buildExportRows(filtered)
 
-      const filterRows: string[][] = []
+      const exportedBy = session ? `${session.name} - ${roleLabel(session.role)}` : '-'
+      const exportedAt = formatDate(new Date())
+
+      const filterRows: (string | number)[][] = []
       if (fStartDate || fEndDate || fPropertyId || fPicId) {
         if (fStartDate || fEndDate) filterRows.push([`Periode: ${periodLabel()}`])
         if (fPropertyId) filterRows.push([`Properti: ${properties.find(p => p.id === fPropertyId)?.name || fPropertyId}`])
@@ -314,32 +353,47 @@ export default function Dashboard() {
         filterRows.push([])
       }
 
-      const data = [
+      const COL = EXPORT_HEADERS.length
+      const dataRowStart = 3 + filterRows.length // 0-based row index of EXPORT_HEADERS
+
+      const data: (string | number)[][] = [
         ['PT ROYAL DPARAGON LAND'],
         ['REKAP DATA PELAPORAN SOD'],
         [],
         ...filterRows,
         EXPORT_HEADERS,
         ...rows,
+        [],
+        ['Exported by', exportedBy],
+        ['Exported at', exportedAt],
       ]
 
       const ws = XLSX.utils.aoa_to_sheet(data)
 
-      // Style header row (merge title cells)
-      const headerRowIndex = 3 + filterRows.length
       ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: EXPORT_HEADERS.length - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: EXPORT_HEADERS.length - 1 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: COL - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: COL - 1 } },
       ]
 
-      // Column widths
+      void dataRowStart
+
       ws['!cols'] = [
-        { wch: 5 }, { wch: 28 }, { wch: 22 }, { wch: 20 }, { wch: 20 },
-        { wch: 12 }, { wch: 35 }, { wch: 20 },
-        { wch: 30 }, { wch: 20 }, { wch: 22 },
+        { wch: 5 },  // No
+        { wch: 26 }, // ID Laporan
+        { wch: 22 }, // Tanggal Laporan
+        { wch: 20 }, // PIC Pelapor
+        { wch: 20 }, // Properti
+        { wch: 14 }, // Area
+        { wch: 14 }, // ID Denah
+        { wch: 35 }, // Deskripsi Laporan
+        { wch: 35 }, // Foto Laporan
+        { wch: 22 }, // Status
+        { wch: 30 }, // HP - Keterangan
+        { wch: 35 }, // HP - Foto
+        { wch: 25 }, // HP - PIC
+        { wch: 22 }, // HP - Tanggal
       ]
 
-      void headerRowIndex
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Laporan SOD')
       XLSX.writeFile(wb, exportFilename('xlsx'))
@@ -775,7 +829,7 @@ export default function Dashboard() {
             {/* Footer aksi Head */}
             {isHead && detail.status === 'MENUNGGU' && (
               <div className="p-3.5 bg-white border-t border-gray-100 flex-shrink-0">
-                <button onClick={() => { setConfirmTargetId(detail.id); setConfirmDesc(''); setConfirmPhoto(null); setConfirmOpen(true) }}
+                <button onClick={() => { setConfirmTargetId(detail.id); setConfirmDesc(''); setConfirmPhoto(null); setScreen('confirm') }}
                   className="w-full py-3 rounded-xl text-white text-sm font-bold" style={{ background: GRN }}>
                   ✅ Konfirmasi Pengerjaan Selesai
                 </button>
